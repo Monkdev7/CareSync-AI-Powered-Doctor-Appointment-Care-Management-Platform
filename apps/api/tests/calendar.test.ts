@@ -55,7 +55,7 @@ async function runTests() {
 
   // Use mock provider
   const created: CalendarEventData[] = [];
-  const mock: CalendarProvider = { createEvent: async (d) => { created.push(d); return `gcal-${Date.now()}`; } };
+  const mock: CalendarProvider = { createEvent: async (d) => { created.push(d); return `gcal-${Date.now()}`; }, deleteEvent: async () => {} };
   setCalendarProvider(mock);
 
   // 1. PENDING event is processed
@@ -77,7 +77,7 @@ async function runTests() {
   assert(created.length === 0, "4b. No provider call made");
 
   // 5. Provider failure handled safely
-  const failProvider: CalendarProvider = { createEvent: async () => { throw new Error("API unavailable"); } };
+  const failProvider: CalendarProvider = { createEvent: async () => { throw new Error("API unavailable"); }, deleteEvent: async () => {} };
   setCalendarProvider(failProvider);
 
   const appt2 = await prisma.appointment.create({

@@ -74,6 +74,14 @@ export async function createLeave(input: CreateLeaveInput, adminUserId: string) 
           slotDate: { gte: startDate, lte: endDate },
         },
       });
+
+      // Mark calendar events for cancelled appointments as FAILED (deletion handled by sync job)
+      if (affected.length > 0) {
+        await tx.calendarEvent.updateMany({
+          where: { appointmentId: { in: affected.map((a) => a.id) } },
+          data: { syncStatus: "FAILED", errorMessage: "Appointment cancelled due to doctor leave" },
+        });
+      }
     }
 
     return leave;

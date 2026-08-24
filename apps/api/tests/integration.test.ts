@@ -66,7 +66,7 @@ async function setup() {
   await cleanup();
   resetLLMProvider();
   setEmailSender({ send: async () => {} } as EmailSender);
-  setCalendarProvider({ createEvent: async () => `gcal-int-${Date.now()}` } as CalendarProvider);
+  setCalendarProvider({ createEvent: async () => `gcal-int-${Date.now()}`, deleteEvent: async () => {} } as CalendarProvider);
 
   const hash = await hashPassword("ValidPass123");
   const spec = await prisma.specialisation.create({ data: { name: `${P}Cardio` } });

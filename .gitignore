@@ -33,3 +33,7 @@ coverage/
 
 # Generated
 apps/api/src/generated/
+
+# Frontend tsc output (Vite handles TS directly)
+apps/web/src/**/*.js
+apps/web/dist/

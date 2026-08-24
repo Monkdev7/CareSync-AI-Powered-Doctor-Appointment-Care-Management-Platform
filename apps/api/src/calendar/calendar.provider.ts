@@ -13,6 +13,7 @@ export interface CalendarEventData {
 
 export interface CalendarProvider {
   createEvent(data: CalendarEventData): Promise<string>; // returns googleEventId
+  deleteEvent(googleEventId: string): Promise<void>;
 }
 
 export class MockCalendarProvider implements CalendarProvider {
@@ -20,6 +21,9 @@ export class MockCalendarProvider implements CalendarProvider {
   async createEvent(_data: CalendarEventData): Promise<string> {
     this.counter++;
     return `mock-gcal-event-${this.counter}-${Date.now()}`;
+  }
+  async deleteEvent(_googleEventId: string): Promise<void> {
+    // No-op in mock
   }
 }
 

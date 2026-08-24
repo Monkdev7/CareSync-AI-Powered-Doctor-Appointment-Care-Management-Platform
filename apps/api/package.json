@@ -23,6 +23,7 @@
     "test:leaves": "tsx tests/leaves.test.ts",
     "test:notifications": "tsx tests/notifications.test.ts",
     "test:calendar": "tsx tests/calendar.test.ts",
+    "test:calendar-e2e": "tsx tests/calendar-e2e.test.ts",
     "test:integration": "tsx tests/integration.test.ts",
     "test": "tsx tests/db-constraints.test.ts && tsx tests/auth.test.ts && tsx tests/doctors.test.ts && tsx tests/appointments.test.ts && tsx tests/llm.test.ts && tsx tests/visits.test.ts && tsx tests/leaves.test.ts && tsx tests/notifications.test.ts && tsx tests/calendar.test.ts && tsx tests/integration.test.ts"
   },
@@ -30,6 +31,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.3.0",
     "@prisma/client": "6.8.2",
     "bcrypt": "^6.0.0",
     "fastify": "5.3.3",

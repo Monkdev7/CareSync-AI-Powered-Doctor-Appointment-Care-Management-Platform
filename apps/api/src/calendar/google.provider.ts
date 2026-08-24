@@ -43,4 +43,18 @@ export class GoogleCalendarProvider implements CalendarProvider {
     const event = (await response.json()) as { id: string };
     return event.id;
   }
+
+  async deleteEvent(googleEventId: string): Promise<void> {
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events/${encodeURIComponent(googleEventId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      }
+    );
+
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Google Calendar delete error: ${response.status}`);
+    }
+  }
 }

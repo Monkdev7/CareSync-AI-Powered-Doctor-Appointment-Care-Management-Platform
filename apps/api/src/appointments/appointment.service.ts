@@ -143,19 +143,19 @@ export async function confirmAppointment(
       },
     });
 
-    // 4. Create CalendarEvent (PENDING — actual Google sync is M10)
+    // 4. Create CalendarEvent for BOTH patient and doctor (PENDING — sync is async)
     await tx.calendarEvent.create({
-      data: {
-        appointmentId: appointment.id,
-        userId: patientId,
-        syncStatus: "PENDING",
-      },
+      data: { appointmentId: appointment.id, userId: patientId, syncStatus: "PENDING" },
     });
 
     // 5. Create notification rows (outbox — actual email sending is M8)
     const doctorProfile = await tx.doctorProfile.findUnique({
       where: { id: hold.doctorProfileId },
       select: { userId: true },
+    });
+
+    await tx.calendarEvent.create({
+      data: { appointmentId: appointment.id, userId: doctorProfile!.userId, syncStatus: "PENDING" },
     });
 
     const dateStr = hold.slotDate instanceof Date
