@@ -4,3 +4,10 @@ packages:
 
 overrides:
   electron-to-chromium: "1.5.159"
+
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - bcrypt
+  - esbuild
+  - prisma
