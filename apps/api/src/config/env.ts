@@ -15,10 +15,9 @@ const envSchema = z.object({
   // Database (required)
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
-  // Auth (optional until Milestone 2)
-  JWT_SECRET: z.string().optional(),
-  JWT_ACCESS_EXPIRY: z.string().default("15m"),
-  JWT_REFRESH_EXPIRY: z.string().default("7d"),
+  // Auth
+  JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters"),
+  JWT_EXPIRES_IN: z.string().default("24h"),
   BCRYPT_ROUNDS: z.coerce.number().default(12),
 
   // Email (optional until Milestone 8)

@@ -139,6 +139,111 @@ Verifies:
 pnpm typecheck
 ```
 
+## Authentication API
+
+### POST /api/auth/register
+
+Register a new patient account.
+
+```json
+// Request
+{
+  "email": "patient@example.com",
+  "password": "SecurePass123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phone": "+1-555-0100"
+}
+
+// Response 201
+{
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": {
+      "id": "uuid",
+      "email": "patient@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "phone": "+1-555-0100",
+      "role": "PATIENT",
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  }
+}
+```
+
+- Only PATIENT role can be created via public registration.
+- Email must be unique (409 if duplicate).
+- Password requires: 8+ chars, uppercase, lowercase, digit.
+
+### POST /api/auth/login
+
+```json
+// Request
+{
+  "email": "patient@example.com",
+  "password": "SecurePass123"
+}
+
+// Response 200
+{
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": { ... }
+  }
+}
+
+// Response 401
+{
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Invalid email or password"
+  }
+}
+```
+
+- Same generic error for wrong password, unknown email, or inactive account (prevents user enumeration).
+
+### GET /api/users/me
+
+Requires authentication. Returns the current user's profile.
+
+```
+Authorization: Bearer <token>
+```
+
+### PATCH /api/users/:id/status (Admin only)
+
+Activate or deactivate a user account.
+
+```json
+// Request
+{ "isActive": false }
+```
+
+### Authentication Header
+
+All protected endpoints require:
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+### RBAC
+
+| Code | Meaning |
+|------|---------|
+| 401 | Missing/invalid/expired token, or deactivated user |
+| 403 | Authenticated but insufficient role |
+
+### Environment Variables (Auth)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| JWT_SECRET | Yes | — | Secret for signing JWTs (min 16 chars) |
+| JWT_EXPIRES_IN | No | 24h | Token expiry duration |
+| BCRYPT_ROUNDS | No | 12 | bcrypt cost factor |
+
 ## Architecture
 
 See `ARCHITECTURE_REVISED.md` for the complete system design including:

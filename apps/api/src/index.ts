@@ -1,5 +1,7 @@
 import Fastify from "fastify";
 import { loadEnv } from "./config/env.js";
+import { authRoutes } from "./auth/auth.routes.js";
+import { userRoutes } from "./users/user.routes.js";
 
 const env = loadEnv();
 
@@ -9,10 +11,14 @@ const app = Fastify({
   },
 });
 
-// Health check endpoint
+// Health check
 app.get("/health", async () => {
   return { status: "ok", timestamp: new Date().toISOString() };
 });
+
+// Register route modules
+app.register(authRoutes);
+app.register(userRoutes);
 
 async function start() {
   try {
@@ -25,3 +31,5 @@ async function start() {
 }
 
 start();
+
+export { app };

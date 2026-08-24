@@ -14,17 +14,23 @@
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:reset": "prisma migrate reset --force",
-    "db:test": "tsx tests/db-constraints.test.ts"
+    "db:test": "tsx tests/db-constraints.test.ts",
+    "test:auth": "tsx tests/auth.test.ts",
+    "test": "tsx tests/db-constraints.test.ts && tsx tests/auth.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "6.8.2",
+    "bcrypt": "^6.0.0",
     "fastify": "5.3.3",
+    "jsonwebtoken": "^9.0.3",
     "zod": "3.24.4"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "22.15.18",
     "prisma": "6.8.2",
     "tsx": "4.19.4",
