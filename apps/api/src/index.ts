@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import { loadEnv } from "./config/env.js";
 import { authRoutes } from "./auth/auth.routes.js";
 import { userRoutes } from "./users/user.routes.js";
+import { specialisationRoutes } from "./specialisations/specialisation.routes.js";
+import { doctorRoutes } from "./doctors/doctor.routes.js";
 
 const env = loadEnv();
 
@@ -19,6 +21,8 @@ app.get("/health", async () => {
 // Register route modules
 app.register(authRoutes);
 app.register(userRoutes);
+app.register(specialisationRoutes);
+app.register(doctorRoutes);
 
 async function start() {
   try {

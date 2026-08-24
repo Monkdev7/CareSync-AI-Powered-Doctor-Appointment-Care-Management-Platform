@@ -139,6 +139,73 @@ Verifies:
 pnpm typecheck
 ```
 
+## Doctor & Availability API
+
+### POST /api/specialisations (Admin)
+### GET /api/specialisations (Authenticated)
+### PATCH /api/specialisations/:id (Admin)
+### DELETE /api/specialisations/:id (Admin)
+
+### POST /api/doctors (Admin)
+
+Creates a doctor user + profile atomically.
+
+```json
+{
+  "email": "dr.smith@example.com",
+  "password": "DoctorPass123",
+  "firstName": "Sarah",
+  "lastName": "Smith",
+  "specialisationId": "uuid",
+  "qualifications": ["MD", "Board Certified"],
+  "bio": "Experienced cardiologist",
+  "consultationDurationMin": 30
+}
+```
+
+### GET /api/doctors (Authenticated)
+### GET /api/doctors/:id (Authenticated)
+### PATCH /api/doctors/:id (Admin)
+
+### PUT /api/doctors/:doctorId/working-hours (Admin)
+
+```json
+{
+  "hours": [
+    { "dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "isActive": true },
+    { "dayOfWeek": "TUESDAY", "startTime": "09:00", "endTime": "12:00", "isActive": true }
+  ]
+}
+```
+
+### GET /api/doctors/:doctorId/working-hours (Authenticated)
+
+### GET /api/doctors/:doctorId/availability?date=YYYY-MM-DD (Authenticated)
+
+Returns dynamically generated available slots.
+
+```json
+{
+  "data": {
+    "doctorId": "uuid",
+    "date": "2024-03-15",
+    "consultationDurationMin": 30,
+    "slots": [
+      { "startTime": "09:00", "endTime": "09:30" },
+      { "startTime": "09:30", "endTime": "10:00" }
+    ]
+  }
+}
+```
+
+**Availability rules:**
+- Slots generated from working hours using `consultationDurationMin`
+- Partial slots (extending beyond endTime) are not generated
+- Confirmed appointments block their slot
+- Active slot holds (not expired) block their slot
+- Doctor leave makes all slots unavailable for affected dates
+- SlotHold creation and appointment confirmation are implemented in Milestone 4
+
 ## Authentication API
 
 ### POST /api/auth/register

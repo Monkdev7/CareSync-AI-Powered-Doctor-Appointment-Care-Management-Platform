@@ -16,7 +16,8 @@
     "db:reset": "prisma migrate reset --force",
     "db:test": "tsx tests/db-constraints.test.ts",
     "test:auth": "tsx tests/auth.test.ts",
-    "test": "tsx tests/db-constraints.test.ts && tsx tests/auth.test.ts"
+    "test:doctors": "tsx tests/doctors.test.ts",
+    "test": "tsx tests/db-constraints.test.ts && tsx tests/auth.test.ts && tsx tests/doctors.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
