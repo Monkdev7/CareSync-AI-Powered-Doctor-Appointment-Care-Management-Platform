@@ -33,7 +33,6 @@ services:
   - type: web
     name: healthcare-web
     runtime: static
-    plan: free
     buildCommand: npm install -g pnpm && pnpm install && pnpm --filter @healthcare/web build
     staticPublishPath: apps/web/dist
     envVars:
