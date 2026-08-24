@@ -9,7 +9,7 @@ services:
     name: healthcare-api
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @healthcare/api exec prisma generate && pnpm --filter @healthcare/api exec prisma migrate deploy
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @healthcare/api exec prisma generate && pnpm --filter @healthcare/api exec prisma migrate deploy
     startCommand: pnpm --filter @healthcare/api dev
     envVars:
       - key: NODE_ENV
@@ -33,7 +33,7 @@ services:
   - type: web
     name: healthcare-web
     runtime: static
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @healthcare/web build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @healthcare/web build
     staticPublishPath: apps/web/dist
     envVars:
       - key: VITE_API_URL
