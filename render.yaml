@@ -25,7 +25,7 @@ services:
       - key: LLM_PROVIDER
         value: mock
       - key: FRONTEND_URL
-        value: https://healthcare-web.onrender.com
+        value: https://healthcare-web-jevt.onrender.com
       - key: SLOT_HOLD_DURATION_MINUTES
         value: "5"
     healthCheckPath: /health
@@ -37,7 +37,7 @@ services:
     staticPublishPath: apps/web/dist
     envVars:
       - key: VITE_API_URL
-        value: https://healthcare-api.onrender.com
+        value: https://healthcare-api-x70h.onrender.com
     routes:
       - type: rewrite
         source: /*
