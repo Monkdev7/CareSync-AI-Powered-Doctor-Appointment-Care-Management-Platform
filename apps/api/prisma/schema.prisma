@@ -1,0 +1,350 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ─────────────────────────────────────────────────────────────────────
+
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  APPOINTMENT_REMINDER
+  CANCELLATION
+  DOCTOR_LEAVE
+  MEDICATION_REMINDER
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum MedicationFrequency {
+  ONCE_DAILY
+  TWICE_DAILY
+  THREE_TIMES_DAILY
+  EVERY_8_HOURS
+  EVERY_12_HOURS
+}
+
+enum CalendarSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+// ─── MODELS ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  doctorProfile       DoctorProfile?
+  patientAppointments Appointment[]        @relation("PatientAppointments")
+  symptomSubmissions  SymptomSubmission[]
+  notifications       Notification[]
+  calendarConnection  CalendarConnection?
+
+  @@index([email])
+  @@index([role])
+}
+
+model Specialisation {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  doctors DoctorProfile[]
+}
+
+model DoctorProfile {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  specialisationId        String
+  qualifications          String[]
+  bio                     String?
+  consultationDurationMin Int      @default(30)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  user           User              @relation(fields: [userId], references: [id])
+  specialisation Specialisation    @relation(fields: [specialisationId], references: [id])
+  workingHours   DoctorWorkingHour[]
+  leaves         DoctorLeave[]
+  appointments   Appointment[]     @relation("DoctorAppointments")
+
+  @@index([specialisationId])
+}
+
+model DoctorWorkingHour {
+  id              String    @id @default(uuid())
+  doctorProfileId String
+  dayOfWeek       DayOfWeek
+  startTime       String    // "09:00" HH:mm format
+  endTime         String    // "17:00" HH:mm format
+  isActive        Boolean   @default(true)
+
+  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id])
+
+  @@unique([doctorProfileId, dayOfWeek])
+}
+
+model DoctorLeave {
+  id              String   @id @default(uuid())
+  doctorProfileId String
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  reason          String?
+  createdBy       String   // Admin user ID who created the leave
+  createdAt       DateTime @default(now())
+
+  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id])
+
+  @@index([doctorProfileId, startDate, endDate])
+}
+
+model SlotHold {
+  id              String   @id @default(uuid())
+  doctorProfileId String
+  patientId       String
+  slotDate        DateTime @db.Date
+  slotStartTime   String   // "09:00" HH:mm format
+  slotEndTime     String   // "09:30" HH:mm format
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([doctorProfileId, slotDate, slotStartTime])
+  @@index([expiresAt])
+  @@index([patientId])
+}
+
+/// Double-booking prevention is enforced by a PostgreSQL partial unique index
+/// (see migration: add_partial_unique_index). The index ensures at most one
+/// CONFIRMED appointment exists per doctor/date/time combination while
+/// allowing cancelled appointments to not block the slot.
+model Appointment {
+  id                 String            @id @default(uuid())
+  patientId          String
+  doctorProfileId    String
+  slotDate           DateTime          @db.Date
+  slotStartTime      String            // "09:00" HH:mm format
+  slotEndTime        String            // "09:30" HH:mm format
+  status             AppointmentStatus @default(CONFIRMED)
+  cancellationReason String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  patient           User              @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctorProfile     DoctorProfile     @relation("DoctorAppointments", fields: [doctorProfileId], references: [id])
+  symptomSubmission SymptomSubmission?
+  preVisitSummary   PreVisitSummary?
+  visitNote         VisitNote?
+  calendarEvents    CalendarEvent[]
+
+  // NOTE: No @@unique here. Double-booking prevention uses a PostgreSQL
+  // partial unique index created via custom migration.
+
+  @@index([patientId])
+  @@index([doctorProfileId, slotDate])
+  @@index([status])
+}
+
+model SymptomSubmission {
+  id              String   @id @default(uuid())
+  appointmentId   String   @unique
+  patientId       String
+  symptoms        String   // JSON array of symptom descriptions
+  duration        String?
+  severity        String?
+  additionalNotes String?
+  createdAt       DateTime @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+  patient     User        @relation(fields: [patientId], references: [id])
+}
+
+model PreVisitSummary {
+  id                 String       @id @default(uuid())
+  appointmentId      String       @unique
+  urgencyLevel       UrgencyLevel?
+  chiefComplaint     String?
+  suggestedQuestions String[]
+  rawLlmResponse     String?
+  generatedAt        DateTime     @default(now())
+  llmProvider        String?
+  isFailure          Boolean      @default(false)
+  errorMessage       String?
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+}
+
+model VisitNote {
+  id            String    @id @default(uuid())
+  appointmentId String    @unique
+  doctorNotes   String
+  diagnosis     String?
+  followUpDate  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  appointment      Appointment       @relation(fields: [appointmentId], references: [id])
+  prescriptions    Prescription[]
+  postVisitSummary PostVisitSummary?
+}
+
+model Prescription {
+  id           String   @id @default(uuid())
+  visitNoteId  String
+  instructions String?
+  createdAt    DateTime @default(now())
+
+  visitNote   VisitNote    @relation(fields: [visitNoteId], references: [id])
+  medications Medication[]
+}
+
+model Medication {
+  id             String              @id @default(uuid())
+  prescriptionId String
+  name           String
+  dosage         String              // "500mg", "10ml"
+  frequency      MedicationFrequency
+  duration       String              // "7 days", "2 weeks"
+  instructions   String?             // "take with food"
+  startDate      DateTime            @db.Date
+  endDate        DateTime            @db.Date
+  isActive       Boolean             @default(true)
+
+  prescription Prescription         @relation(fields: [prescriptionId], references: [id])
+  reminders    MedicationReminder[]
+
+  @@index([isActive, endDate])
+}
+
+model MedicationReminder {
+  id             String   @id @default(uuid())
+  medicationId   String
+  patientId      String
+  scheduledDate  DateTime @db.Date
+  scheduledTime  String   // "08:00" HH:mm format
+  notificationId String?  // Links to the Notification that was created
+  createdAt      DateTime @default(now())
+
+  medication Medication @relation(fields: [medicationId], references: [id])
+
+  @@unique([medicationId, scheduledDate, scheduledTime])
+  @@index([scheduledDate, scheduledTime])
+}
+
+model PostVisitSummary {
+  id                 String   @id @default(uuid())
+  visitNoteId        String   @unique
+  patientExplanation String?
+  medicationSchedule String?
+  followUpSteps      String?
+  rawLlmResponse     String?
+  generatedAt        DateTime @default(now())
+  llmProvider        String?
+  isFailure          Boolean  @default(false)
+  errorMessage       String?
+
+  visitNote VisitNote @relation(fields: [visitNoteId], references: [id])
+}
+
+model Notification {
+  id            String             @id @default(uuid())
+  userId        String
+  type          NotificationType
+  subject       String
+  body          String
+  status        NotificationStatus @default(PENDING)
+  attempts      Int                @default(0)
+  maxAttempts   Int                @default(3)
+  lastAttemptAt DateTime?
+  sentAt        DateTime?
+  errorMessage  String?
+  referenceId   String?
+  referenceType String?
+  createdAt     DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status, lastAttemptAt])
+  @@index([userId])
+  @@index([referenceId, referenceType])
+}
+
+model CalendarConnection {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  encryptedAccessToken  String
+  encryptedRefreshToken String
+  tokenExpiry           DateTime
+  calendarId            String?
+  isConnected           Boolean  @default(true)
+  disconnectedReason    String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model CalendarEvent {
+  id            String             @id @default(uuid())
+  appointmentId String
+  userId        String
+  googleEventId String?            // NULL when sync has not yet succeeded
+  syncStatus    CalendarSyncStatus @default(PENDING)
+  lastSyncAt    DateTime?
+  errorMessage  String?
+  retryCount    Int                @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@unique([appointmentId, userId])
+  @@index([syncStatus])
+}

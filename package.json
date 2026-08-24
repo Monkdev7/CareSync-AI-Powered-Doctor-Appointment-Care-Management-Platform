@@ -1,0 +1,21 @@
+{
+  "name": "healthcare-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Healthcare Appointment & Follow-up Manager",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev:api": "pnpm --filter @healthcare/api dev",
+    "build:api": "pnpm --filter @healthcare/api build",
+    "db:migrate": "pnpm --filter @healthcare/api db:migrate",
+    "db:seed": "pnpm --filter @healthcare/api db:seed",
+    "db:generate": "pnpm --filter @healthcare/api db:generate",
+    "db:validate": "pnpm --filter @healthcare/api db:validate",
+    "db:reset": "pnpm --filter @healthcare/api db:reset",
+    "db:test": "pnpm --filter @healthcare/api db:test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
