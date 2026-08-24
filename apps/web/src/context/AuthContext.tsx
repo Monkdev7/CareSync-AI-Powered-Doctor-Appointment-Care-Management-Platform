@@ -20,13 +20,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     const res = await api.post("/api/auth/login", { email, password });
     if (res.data) { localStorage.setItem("token", res.data.token); setToken(res.data.token); setUser(res.data.user); }
-    else throw new Error(res.error?.message || "Login failed");
+    else {
+      const details = res.error?.details;
+      const msg = details?.length ? details.map((d: any) => d.message).join(". ") : (res.error?.message || "Login failed");
+      throw new Error(msg);
+    }
   };
 
   const register = async (data: any) => {
     const res = await api.post("/api/auth/register", data);
     if (res.data) { localStorage.setItem("token", res.data.token); setToken(res.data.token); setUser(res.data.user); }
-    else throw new Error(res.error?.message || "Registration failed");
+    else {
+      const details = res.error?.details;
+      const msg = details?.length ? details.map((d: any) => d.message).join(". ") : (res.error?.message || "Registration failed");
+      throw new Error(msg);
+    }
   };
 
   const logout = () => { localStorage.removeItem("token"); setToken(null); setUser(null); };
