@@ -17,7 +17,14 @@
     "db:test": "tsx tests/db-constraints.test.ts",
     "test:auth": "tsx tests/auth.test.ts",
     "test:doctors": "tsx tests/doctors.test.ts",
-    "test": "tsx tests/db-constraints.test.ts && tsx tests/auth.test.ts && tsx tests/doctors.test.ts"
+    "test:appointments": "tsx tests/appointments.test.ts",
+    "test:llm": "tsx tests/llm.test.ts",
+    "test:visits": "tsx tests/visits.test.ts",
+    "test:leaves": "tsx tests/leaves.test.ts",
+    "test:notifications": "tsx tests/notifications.test.ts",
+    "test:calendar": "tsx tests/calendar.test.ts",
+    "test:integration": "tsx tests/integration.test.ts",
+    "test": "tsx tests/db-constraints.test.ts && tsx tests/auth.test.ts && tsx tests/doctors.test.ts && tsx tests/appointments.test.ts && tsx tests/llm.test.ts && tsx tests/visits.test.ts && tsx tests/leaves.test.ts && tsx tests/notifications.test.ts && tsx tests/calendar.test.ts && tsx tests/integration.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

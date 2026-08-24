@@ -4,6 +4,9 @@ import { authRoutes } from "./auth/auth.routes.js";
 import { userRoutes } from "./users/user.routes.js";
 import { specialisationRoutes } from "./specialisations/specialisation.routes.js";
 import { doctorRoutes } from "./doctors/doctor.routes.js";
+import { appointmentRoutes } from "./appointments/appointment.routes.js";
+import { visitRoutes } from "./visits/visit.routes.js";
+import { leaveRoutes } from "./leaves/leave.routes.js";
 
 const env = loadEnv();
 
@@ -23,6 +26,9 @@ app.register(authRoutes);
 app.register(userRoutes);
 app.register(specialisationRoutes);
 app.register(doctorRoutes);
+app.register(appointmentRoutes);
+app.register(visitRoutes);
+app.register(leaveRoutes);
 
 async function start() {
   try {
