@@ -3,14 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Healthcare Appointment & Follow-up Manager",
+  "packageManager": "pnpm@10.11.0",
   "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "electron-to-chromium": "1.5.159"
-    }
+    "node": ">=20.0.0"
   },
   "scripts": {
     "dev:api": "pnpm --filter @healthcare/api dev",
