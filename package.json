@@ -9,7 +9,9 @@
   },
   "scripts": {
     "dev:api": "pnpm --filter @healthcare/api dev",
+    "dev:web": "pnpm --filter @healthcare/web dev",
     "build:api": "pnpm --filter @healthcare/api build",
+    "build:web": "pnpm --filter @healthcare/web build",
     "db:migrate": "pnpm --filter @healthcare/api db:migrate",
     "db:seed": "pnpm --filter @healthcare/api db:seed",
     "db:generate": "pnpm --filter @healthcare/api db:generate",

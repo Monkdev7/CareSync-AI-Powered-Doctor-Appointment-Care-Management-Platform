@@ -1,323 +1,113 @@
-# Healthcare Appointment & Follow-up Manager
+# CareSync — AI-Powered Healthcare Appointment & Follow-up Manager
 
-A full-stack healthcare appointment platform with role-based portals for patients, doctors, and administrators.
-
-## Prerequisites
-
-- **Node.js** >= 20.0.0
-- **pnpm** >= 9.0.0
-- **PostgreSQL** 16+ (provided via Docker Compose)
-- **Docker** (for local PostgreSQL)
+Full-stack healthcare appointment platform with role-based portals (Patient, Doctor, Admin), AI-powered pre/post-visit summaries, double-booking prevention, notification outbox, and Google Calendar integration.
 
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# Prerequisites: Node.js 20+, pnpm 9+, Docker
 pnpm install
-
-# 2. Start PostgreSQL
-docker compose up -d
-
-# 3. Copy environment file
+docker compose up -d         # PostgreSQL
 cp .env.example apps/api/.env
-# Edit apps/api/.env if needed (defaults work with docker-compose)
-
-# 4. Run database migrations
-pnpm db:migrate
-
-# 5. Seed development data
-pnpm db:seed
-
-# 6. Start the API server
-pnpm dev:api
+pnpm db:migrate              # Apply migrations
+pnpm db:seed                 # Seed development data
+pnpm dev:api                 # http://localhost:3000
+cd apps/web && pnpm dev      # http://localhost:5173
 ```
 
-The API will be available at `http://localhost:3000`.
+## Architecture (System Design)
+
+**Stack:** Node.js + Fastify + TypeScript + Prisma + PostgreSQL + React + Vite
+
+**Double-Booking Prevention:** PostgreSQL partial unique index `WHERE status = 'CONFIRMED'` guarantees at most one confirmed appointment per doctor/date/time slot. Application-level availability checks provide early rejection; the database constraint is the authoritative last line of defense. Cancelled appointments do not block rebooking.
+
+**Slot Hold Mechanism:** A 5-minute `SlotHold` (enforced by DB unique constraint `doctorProfileId + slotDate + slotStartTime`) temporarily reserves a slot while the patient fills symptoms. Confirmation atomically DELETEs the hold (`WHERE expiresAt > NOW()`) and INSERTs the appointment in one transaction. Expired holds are cleaned by a background job and ignored by availability queries.
+
+**Doctor Leave Conflict Handling:** When admin creates leave, a transaction: (1) creates the leave record, (2) cancels all CONFIRMED appointments in the range, (3) creates PENDING notification records for affected patients, (4) releases any active slot holds. Availability returns zero slots for leave dates.
+
+**Notification Reliability (Outbox Pattern):** Notification rows are created inside business transactions (same COMMIT as appointments/cancellations). A sender job picks up PENDING notifications, attempts email delivery, marks SENT on success or FAILED with exponential backoff (2^attempts × 60s). After `maxAttempts` (3), stays FAILED for admin review. Already-SENT notifications are never reprocessed.
+
+**LLM Failure Handling:** Pre-visit and post-visit summaries are generated asynchronously after booking/prescription creation. LLM failure never blocks any user operation. Failed summaries store `isFailure: true` with the error. Output is validated with Zod schemas before persistence. A mock provider enables testing without real API keys.
+
+**Calendar Synchronization:** `CalendarEvent` rows (PENDING) are created in the booking transaction. A background sync job processes them using the CalendarProvider abstraction. Success stores `googleEventId` + SYNCED status. Failure stores error + FAILED. Calendar failure never affects appointment state.
+
+**Background Jobs:** Single-instance deployment with idempotent jobs (slot hold expiry, notification sender, calendar sync, medication reminders). All use DB state checks to prevent duplicate processing.
+
+## API Endpoints
+
+| Method | Path | Access | Purpose |
+|--------|------|--------|---------|
+| POST | /api/auth/register | Public | Patient registration |
+| POST | /api/auth/login | Public | Login (all roles) |
+| GET | /api/users/me | Auth | Current profile |
+| PATCH | /api/users/:id/status | Admin | Activate/deactivate user |
+| GET/POST/PATCH/DEL | /api/specialisations | Auth/Admin | Specialisation CRUD |
+| POST | /api/doctors | Admin | Create doctor (atomic) |
+| GET | /api/doctors | Auth | List/filter doctors |
+| GET | /api/doctors/:id | Auth | Doctor detail |
+| PUT | /api/doctors/:id/working-hours | Admin | Set working hours |
+| GET | /api/doctors/:id/availability?date= | Auth | Dynamic slot availability |
+| POST | /api/doctors/:id/leave | Admin | Create leave (cancels conflicts) |
+| POST | /api/appointments/hold | Patient | 5-min slot hold |
+| POST | /api/appointments/confirm | Patient | Confirm with symptoms |
+| GET | /api/appointments | Auth | List own appointments |
+| GET | /api/appointments/:id | Owner | Appointment detail |
+| GET | /api/appointments/:id/pre-summary | Doctor | AI pre-visit summary |
+| POST | /api/appointments/:id/visit-note | Doctor | Create visit note |
+| POST | /api/appointments/:id/prescription | Doctor | Create prescription |
+| GET | /api/appointments/:id/post-summary | Patient/Doctor | AI post-visit summary |
+
+## Database Schema
+
+17 models: User, Specialisation, DoctorProfile, DoctorWorkingHour, DoctorLeave, SlotHold, Appointment, SymptomSubmission, PreVisitSummary, VisitNote, Prescription, Medication, MedicationReminder, PostVisitSummary, Notification, CalendarConnection, CalendarEvent.
+
+Critical constraint: `CREATE UNIQUE INDEX "unique_confirmed_appointment" ON "Appointment" ("doctorProfileId","slotDate","slotStartTime") WHERE "status" = 'CONFIRMED'` — implemented via custom Prisma migration.
+
+## LLM Prompts
+
+**Pre-visit:** Receives symptoms/duration/severity → returns `{urgencyLevel, chiefComplaint, suggestedQuestions[3]}`. Validated with Zod. Mock provider returns deterministic output for testing.
+
+**Post-visit:** Receives doctor notes/diagnosis/medications → returns `{patientExplanation, medicationSchedule, followUpSteps}`. Provider selected via `LLM_PROVIDER` env var (mock/openai).
+
+## Google Calendar Setup
+
+1. Create Google Cloud project with Calendar API enabled
+2. Create OAuth 2.0 credentials (Web application type)
+3. Set redirect URI to `http://localhost:3000/api/v1/calendar/callback`
+4. Configure: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+5. The CalendarProvider abstraction uses OAuth access tokens to create/manage events
+
+## Email Configuration
+
+Uses Nodemailer SMTP. Configure: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`. For development, use Mailtrap or similar. Mock sender is used when SMTP is not configured.
+
+## Environment Variables
+
+See `.env.example` for all variables with descriptions.
+
+## Running Tests
+
+```bash
+pnpm --filter @healthcare/api test        # All 198 assertions
+pnpm --filter @healthcare/api typecheck   # TypeScript
+pnpm --filter @healthcare/api db:test     # DB constraints only
+```
 
 ## Project Structure
 
 ```
-healthcare-platform/
-├── apps/
-│   ├── api/                    # Backend API (Fastify + TypeScript + Prisma)
-│   │   ├── prisma/
-│   │   │   ├── schema.prisma   # Database schema
-│   │   │   ├── migrations/     # SQL migrations
-│   │   │   └── seed.ts         # Development seed data
-│   │   ├── src/
-│   │   │   ├── config/         # Environment validation
-│   │   │   ├── db.ts           # Prisma client singleton
-│   │   │   └── index.ts        # Application entry point
-│   │   └── tests/
-│   │       └── db-constraints.test.ts  # Database constraint verification
-│   └── web/                    # Frontend (future milestone)
-├── packages/                   # Shared packages (future milestone)
-├── docker-compose.yml          # Local PostgreSQL
-├── .env.example                # Environment variable template
-└── pnpm-workspace.yaml         # Monorepo workspace config
+apps/api/src/
+  auth/          — JWT, bcrypt, RBAC middleware
+  users/         — Profile management
+  specialisations/ — Specialisation CRUD
+  doctors/       — Doctor profiles, working hours
+  availability/  — Dynamic slot generation
+  appointments/  — Hold, confirm, list
+  visits/        — Visit notes, prescriptions
+  leaves/        — Doctor leave management
+  llm/           — LLM provider abstraction, pre/post summaries
+  notifications/ — Email sender, outbox processor
+  calendar/      — Calendar provider, sync processor
+  jobs/          — Background job registry
+apps/web/src/    — React frontend (Patient/Doctor/Admin portals)
 ```
-
-## Database
-
-### Technology
-
-- **PostgreSQL 16** via Docker
-- **Prisma ORM** for schema management, migrations, and queries
-
-### Schema
-
-The database includes 17 models covering users, appointments, symptoms, visits, prescriptions, notifications, and calendar integration. See `apps/api/prisma/schema.prisma` for the complete schema.
-
-### Partial Unique Index (Critical)
-
-The system prevents double-booking at the database level using a **PostgreSQL partial unique index**:
-
-```sql
-CREATE UNIQUE INDEX "unique_confirmed_appointment"
-ON "Appointment" ("doctorProfileId", "slotDate", "slotStartTime")
-WHERE "status" = 'CONFIRMED';
-```
-
-**Why a partial unique index?**
-
-- A normal compound unique constraint including `status` would prevent rebooking a slot after cancellation (since the cancelled row occupies the key space).
-- A partial index only enforces uniqueness for `CONFIRMED` rows, so:
-  - Two CONFIRMED appointments for the same slot are impossible.
-  - A cancelled appointment does NOT block the slot.
-  - A new CONFIRMED appointment can reuse a previously cancelled slot.
-
-**Why a custom migration?**
-
-Prisma's schema language does not support partial unique indexes. The index is created via a manually-authored migration SQL file (`20260824081231_add_partial_unique_index/migration.sql`). Prisma's migration system tracks and applies it like any other migration.
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `pnpm db:validate` | Validate Prisma schema syntax |
-| `pnpm db:generate` | Generate Prisma client |
-| `pnpm db:migrate` | Apply pending migrations |
-| `pnpm db:seed` | Seed development data |
-| `pnpm db:reset` | Reset database (drop + migrate + seed) |
-| `pnpm db:test` | Run database constraint tests |
-
-## Development Data
-
-The seed creates:
-
-| Entity | Count | Details |
-|--------|-------|---------|
-| Admin users | 1 | admin@healthcare.dev |
-| Doctors | 2 | Cardiology, Dermatology |
-| Patients | 3 | alice, bob, carol |
-| Specialisations | 3 | Cardiology, Dermatology, General Practice |
-| Working hours | 8 | Mon-Fri for Dr. Smith, Mon/Wed/Fri for Dr. Jones |
-
-All users share the same development password hash (not a real password).
-
-## Environment Variables
-
-See `.env.example` for all supported variables. For Milestone 1, only `DATABASE_URL` is required.
-
-## Testing
-
-### Database Constraint Tests
-
-```bash
-pnpm db:test
-```
-
-Verifies:
-- Test A: Duplicate CONFIRMED appointments are rejected (partial unique index)
-- Test B: Cancelled slots can be rebooked
-- Test C: Duplicate slot holds are rejected (unique constraint)
-- Test D: Multiple non-CONFIRMED statuses allowed for same slot
-
-### TypeScript
-
-```bash
-pnpm typecheck
-```
-
-## Doctor & Availability API
-
-### POST /api/specialisations (Admin)
-### GET /api/specialisations (Authenticated)
-### PATCH /api/specialisations/:id (Admin)
-### DELETE /api/specialisations/:id (Admin)
-
-### POST /api/doctors (Admin)
-
-Creates a doctor user + profile atomically.
-
-```json
-{
-  "email": "dr.smith@example.com",
-  "password": "DoctorPass123",
-  "firstName": "Sarah",
-  "lastName": "Smith",
-  "specialisationId": "uuid",
-  "qualifications": ["MD", "Board Certified"],
-  "bio": "Experienced cardiologist",
-  "consultationDurationMin": 30
-}
-```
-
-### GET /api/doctors (Authenticated)
-### GET /api/doctors/:id (Authenticated)
-### PATCH /api/doctors/:id (Admin)
-
-### PUT /api/doctors/:doctorId/working-hours (Admin)
-
-```json
-{
-  "hours": [
-    { "dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "17:00", "isActive": true },
-    { "dayOfWeek": "TUESDAY", "startTime": "09:00", "endTime": "12:00", "isActive": true }
-  ]
-}
-```
-
-### GET /api/doctors/:doctorId/working-hours (Authenticated)
-
-### GET /api/doctors/:doctorId/availability?date=YYYY-MM-DD (Authenticated)
-
-Returns dynamically generated available slots.
-
-```json
-{
-  "data": {
-    "doctorId": "uuid",
-    "date": "2024-03-15",
-    "consultationDurationMin": 30,
-    "slots": [
-      { "startTime": "09:00", "endTime": "09:30" },
-      { "startTime": "09:30", "endTime": "10:00" }
-    ]
-  }
-}
-```
-
-**Availability rules:**
-- Slots generated from working hours using `consultationDurationMin`
-- Partial slots (extending beyond endTime) are not generated
-- Confirmed appointments block their slot
-- Active slot holds (not expired) block their slot
-- Doctor leave makes all slots unavailable for affected dates
-- SlotHold creation and appointment confirmation are implemented in Milestone 4
-
-## Authentication API
-
-### POST /api/auth/register
-
-Register a new patient account.
-
-```json
-// Request
-{
-  "email": "patient@example.com",
-  "password": "SecurePass123",
-  "firstName": "John",
-  "lastName": "Doe",
-  "phone": "+1-555-0100"
-}
-
-// Response 201
-{
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIs...",
-    "user": {
-      "id": "uuid",
-      "email": "patient@example.com",
-      "firstName": "John",
-      "lastName": "Doe",
-      "phone": "+1-555-0100",
-      "role": "PATIENT",
-      "isActive": true,
-      "createdAt": "2024-01-01T00:00:00.000Z"
-    }
-  }
-}
-```
-
-- Only PATIENT role can be created via public registration.
-- Email must be unique (409 if duplicate).
-- Password requires: 8+ chars, uppercase, lowercase, digit.
-
-### POST /api/auth/login
-
-```json
-// Request
-{
-  "email": "patient@example.com",
-  "password": "SecurePass123"
-}
-
-// Response 200
-{
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIs...",
-    "user": { ... }
-  }
-}
-
-// Response 401
-{
-  "error": {
-    "code": "INVALID_CREDENTIALS",
-    "message": "Invalid email or password"
-  }
-}
-```
-
-- Same generic error for wrong password, unknown email, or inactive account (prevents user enumeration).
-
-### GET /api/users/me
-
-Requires authentication. Returns the current user's profile.
-
-```
-Authorization: Bearer <token>
-```
-
-### PATCH /api/users/:id/status (Admin only)
-
-Activate or deactivate a user account.
-
-```json
-// Request
-{ "isActive": false }
-```
-
-### Authentication Header
-
-All protected endpoints require:
-```
-Authorization: Bearer <JWT_TOKEN>
-```
-
-### RBAC
-
-| Code | Meaning |
-|------|---------|
-| 401 | Missing/invalid/expired token, or deactivated user |
-| 403 | Authenticated but insufficient role |
-
-### Environment Variables (Auth)
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| JWT_SECRET | Yes | — | Secret for signing JWTs (min 16 chars) |
-| JWT_EXPIRES_IN | No | 24h | Token expiry duration |
-| BCRYPT_ROUNDS | No | 12 | bcrypt cost factor |
-
-## Architecture
-
-See `ARCHITECTURE_REVISED.md` for the complete system design including:
-- Appointment concurrency strategy
-- Slot-hold lifecycle
-- Doctor leave conflict handling
-- Notification outbox pattern
-- LLM integration strategy
-- Google Calendar synchronization
-- Background job design

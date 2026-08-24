@@ -26,14 +26,57 @@ export async function createLeave(input: CreateLeaveInput, adminUserId: string) 
     throw new LeaveConflictError("Overlapping leave period exists");
   }
 
-  return prisma.doctorLeave.create({
-    data: {
-      doctorProfileId: input.doctorProfileId,
-      startDate,
-      endDate,
-      reason: input.reason || null,
-      createdBy: adminUserId,
-    },
+  // Use transaction: create leave + cancel affected appointments + notify
+  return prisma.$transaction(async (tx) => {
+    const leave = await tx.doctorLeave.create({
+      data: {
+        doctorProfileId: input.doctorProfileId,
+        startDate,
+        endDate,
+        reason: input.reason || null,
+        createdBy: adminUserId,
+      },
+    });
+
+    // Find affected confirmed appointments
+    const affected = await tx.appointment.findMany({
+      where: {
+        doctorProfileId: input.doctorProfileId,
+        slotDate: { gte: startDate, lte: endDate },
+        status: "CONFIRMED",
+      },
+    });
+
+    if (affected.length > 0) {
+      // Cancel affected appointments
+      await tx.appointment.updateMany({
+        where: { id: { in: affected.map((a) => a.id) } },
+        data: { status: "CANCELLED", cancellationReason: `Doctor leave: ${leave.id}` },
+      });
+
+      // Create notifications for affected patients
+      await tx.notification.createMany({
+        data: affected.map((a) => ({
+          userId: a.patientId,
+          type: "DOCTOR_LEAVE" as const,
+          subject: "Appointment Cancelled - Doctor Unavailable",
+          body: `Your appointment on ${a.slotDate.toISOString().split("T")[0]} at ${a.slotStartTime} has been cancelled due to doctor leave.`,
+          status: "PENDING" as const,
+          referenceId: a.id,
+          referenceType: "appointment",
+        })),
+      });
+
+      // Release any active slot holds for the leave period
+      await tx.slotHold.deleteMany({
+        where: {
+          doctorProfileId: input.doctorProfileId,
+          slotDate: { gte: startDate, lte: endDate },
+        },
+      });
+    }
+
+    return leave;
   });
 }
 
