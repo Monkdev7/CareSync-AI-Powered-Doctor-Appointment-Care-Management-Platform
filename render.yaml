@@ -9,7 +9,7 @@ services:
     name: healthcare-api
     runtime: node
     plan: free
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @healthcare/api exec prisma generate && pnpm --filter @healthcare/api exec prisma migrate deploy
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @healthcare/api exec prisma generate && pnpm --filter @healthcare/api exec prisma migrate deploy && pnpm --filter @healthcare/api db:seed
     startCommand: pnpm --filter @healthcare/api dev
     envVars:
       - key: NODE_ENV
